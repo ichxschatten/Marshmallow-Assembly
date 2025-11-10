@@ -118,15 +118,15 @@ get_params:
 	stosb
 	ret
 
-include 'system.inc'
-include 'errors.inc'
+include 'inc/system.inc'
+include 'inc/errors.inc'
 
-include 'expressions.inc'
-include 'preprocessor.inc'
-include 'parser.inc'
-include 'assembler.inc'
-include 'formats.inc'
-include 'tables.inc'
+include 'inc/expressions.inc'
+include 'inc/preprocessor.inc'
+include 'inc/parser.inc'
+include 'inc/assembler.inc'
+include 'inc/formats.inc'
+include 'inc/tables.inc'
 
 _copyright db 'Copyright (c) 2025, Help From the Void Independent Systems (HFtV-IS)',24h
 
