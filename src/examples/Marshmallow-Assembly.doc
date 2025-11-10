@@ -1,0 +1,469 @@
+Marshmallow-Assembly Documentation
+=================================
+
+Table of Contents
+-----------------
+
+1. Introduction
+   1.1 What is Marshmallow-Assembly?
+   1.2 Hardware requirements
+   1.3 Software and OS requirements
+   1.4 Output formats
+   1.5 Output file ordering
+
+2. Using Marshmallow-Assembly
+   2.1 Assembler syntax
+       2.1.1 Instruction syntax
+             2.1.1.1 Data access
+             2.1.1.2 Jumps and calls
+             2.1.1.3 Labels and constants
+             2.1.1.4 Addresses
+             2.1.1.5 Special cases
+       2.1.2 Number syntax
+       2.1.3 Logical expressions syntax
+       2.1.4 Defining constants
+       2.1.5 Defining data
+   2.2 Directives
+       2.2.1 Preprocessor directives
+       2.2.2 Code settings
+       2.2.3 Other directives
+
+
+1. Introduction
+---------------
+
+1.1 What is Marshmallow-Assembly?
+---------------------------------
+
+Marshmallow-Assembly is a fast, efficient 80x86 assembler that operates in
+flat real mode.
+
+It requires at least an 80386 processor to run, but it can assemble programs
+for any x86 compatible CPU.
+
+Unlike many other assemblers, Marshmallow-Assembly expects only the information
+that is actually needed. The syntax is compact and direct. For basic usage,
+see the files in the "examples" directory. For more advanced techniques, see
+the "source" and "examples" directories.
+
+
+1.2 Hardware requirements
+-------------------------
+
+Minimum requirements:
+
+- CPU: 80386 or newer
+- Memory: at least 1 MB of extended memory is recommended for stable and fast
+  assembly
+
+Overall hardware requirements are modest.
+
+
+1.3 Software and OS requirements
+--------------------------------
+
+Marshmallow-Assembly is designed to run on systems compatible with MS-DOS 2.0
+or later.
+
+No additional software is required.
+
+It operates in flat real mode. It cannot be run when the CPU is in protected
+mode or V86 mode, because entering flat real mode from those states is not
+possible.
+
+
+1.4 Output formats
+------------------
+
+Marshmallow-Assembly supports two output formats:
+
+1. Binary (default)
+   Produces a non-relocatable flat binary image, suitable for .COM, .SYS,
+   and other raw binaries.
+
+2. "format MZ"
+   Produces a relocatable, possibly multi-segment DOS MZ .EXE file.
+
+Both formats are generated directly by the assembler. No external linker is
+required.
+
+
+1.5 Output file ordering
+------------------------
+
+The output is generated in the same order as the source code.
+
+- For the default binary format, program code or a jump to the entry point
+  (for example "jmp start") should appear near the beginning of the source.
+- For "format MZ", the entry point is defined with the "entry" directive.
+  Segment layout and entry point can be controlled explicitly.
+
+
+2. Using Marshmallow-Assembly
+-----------------------------
+
+2.1 Assembler syntax
+--------------------
+
+2.1.1 Instruction syntax
+------------------------
+
+2.1.1.1 Data access
+-------------------
+
+Data operands follow two simple rules:
+
+    mov eax,myvar       ; place the offset (address) of 'myvar' into EAX
+    mov eax,[myvar]     ; place the 32-bit value stored at 'myvar' into EAX
+
+If "myvar" is not defined as a 32-bit value, "mov eax,[myvar]" will cause an
+error.
+
+To force the operand size, use an explicit size override:
+
+    mov eax,dword [myvar]
+    ; or
+    mov eax,d[myvar]
+
+This is dangerous if "myvar" is defined as 8 or 16 bits, because EAX will
+receive four bytes starting at the address of "myvar".
+
+
+2.1.1.2 Jumps and calls
+-----------------------
+
+Unconditional jumps and calls:
+
+    jmp  alfa                ; simple jump
+    jmp  near byte beta      ; force short jump
+    jmp  near dword beta     ; force dword jump
+    jmp  10h:50h             ; far jump
+    call far pword [1000h]   ; 32-bit far call
+    call far dword [delta]   ; 16-bit far call
+    call near dword [delta]  ; 32-bit near callb
+
+Conditional jumps:
+
+    je   alfa                ; will be optimized
+    jge  byte alfa           ; force byte, error if out of range
+    jb   dword alfa          ; force dword, no optimization
+
+The assembler can optimize jump size automatically, or you can enforce a
+specific size using "byte" or "dword".
+
+
+2.1.1.3 Labels and constants
+----------------------------
+
+Examples:
+
+    alfa:                         ; simple label
+         label     beta           ; equivalent to a simple label
+         label     gamma byte     ; low byte of a dword variable 'delta'
+    delta          dd 0           ; data label
+    epsilon = alfa + 1            ; numeric constant
+
+Local labels:
+
+    sigma:
+    .alfa:                        ; local label (1)
+         jmp  .alfa               ; jump to (1)
+    omega:
+    .alfa:                        ; local label (2)
+         jmp  .alfa               ; jump to (2)
+         jmp  sigma.alfa          ; jump to (1)
+
+Local labels are bound to the nearest preceding non-local label. This keeps
+code structured and avoids name collisions.
+
+
+2.1.1.4 Addresses
+-----------------
+
+You can define the size of address values:
+
+    [word 4]          ; generates 0000
+    [dword 4]         ; generates 00000000
+    [word bx]         ; [bx+0000]
+    [byte bx]         ; [bx+00]
+    [dword ebx+1]     ; [ebx+00000001]
+
+This gives explicit control over how addresses are encoded.
+
+
+2.1.1.5 Special cases
+---------------------
+
+The "xlat" instruction:
+
+- No argument, or "[bx]" / "byte [bx]" selects the 16-bit form.
+- "[ebx]" / "byte [ebx]" selects the 32-bit form.
+
+String instructions can be configured similarly. For example:
+
+    movs byte [es:edi],[fs:esi]
+
+This sets operand sizes and segment overrides. "movs" requires two arguments
+in this extended form.
+
+Instructions like "xlatb", "movsb", etc. do not accept arguments.
+
+
+2.1.2 Number syntax
+-------------------
+
+Supported number formats:
+
+- Decimal: 15, 15d
+- Binary: 1011b
+- Hexadecimal: ABh, 0xAB (case-sensitive)
+- Operators: +, -, *, /, mod, not, and, or, xor, shl, shr
+
+
+2.1.3 Logical expressions syntax
+--------------------------------
+
+Logical operators:
+
+- "~" : logical NOT
+- "|" : logical OR
+- "&" : logical AND
+
+You can define boolean-style symbols:
+
+    true  equ 0=0
+    false equ ~true
+
+These can then be used in conditional assembly.
+
+
+2.1.4 Defining constants
+------------------------
+
+"=" works on evaluated values at definition time.
+"equ" defines a pure textual substitution.
+
+Example:
+
+    xyz = $
+
+Here "xyz" becomes the address at the point where it is defined.
+
+    xyz equ $
+
+Here "xyz" always expands to "$" and will refer to the address at the point
+of use, not the point of definition.
+
+
+2.1.5 Defining data
+-------------------
+
+Initialized data:
+
+    gdtr      db   16, 0, 0, 0, 0, 0,0
+    attrib    db   0x1E
+    col       db   0
+    command:  times 127 db 0
+    str001    db   'test.bin',0
+    argv:     times 10 dd 0
+
+Other data types:
+
+    dw   ; 16-bit word
+    dp   ; 48-bit pointer
+    dq   ; 64-bit quad word
+
+Reserved (uninitialized) data:
+
+    _proname  rd   1
+    _inch     rb   1
+    newstack  rd   255
+    stacktop  rd   1
+    freemem   rd   1
+
+Other reserve directives:
+
+    rw   ; 16-bit word
+    rp   ; 48-bit pointer
+    rq   ; 64-bit quad word
+
+When using "times" with a label, the label must end with a colon.
+
+Structure-like layouts can be created with macros:
+
+    macro pixel name,x,y,color
+     {
+      name:
+      .x dw x
+      .y dw y
+      .color db color
+     }
+
+    virtual at 0
+     pixel pixel,?,?,?
+    end virtual
+
+    ; pixel.x, pixel.y and pixel.color offsets are defined
+
+    pixel mypix,10,10,4
+
+    ; now mypix.x, mypix.y, mypix.color variables are also defined
+
+To handle empty parameters, use expressions such as ".x dw x+0" or checks
+like "if <x> equ <>".
+
+2.2 Directives
+--------------
+
+2.2.1 Preprocessor directives
+-----------------------------
+
+include
+    Inserts another source file into the current source before assembly.
+
+macro
+    Defines macro instructions.
+
+    Syntax:
+        macro name arg1,arg2,... {
+            ; body
+        }
+
+    Arguments may be empty. To check if an argument is empty:
+
+        if <arg> equ <>
+
+    Example macro redefinition of "mov":
+
+        macro mov arg1,arg2
+         {
+          if (arg1 equ ds | arg1 equ es) & (arg2 equ ds | arg2 equ es)
+             push  arg2
+             pop   arg1
+          else
+             mov   arg1,arg2  ; original mov
+          end if
+         }
+        macro mov arg1,arg2,arg3
+         {
+          if <arg3> equ <>
+             mov   arg1,arg2  ; previous macro
+          else
+             mov   arg1,arg2
+             mov   arg2,arg3
+          end if
+         }
+        mov   ax,bx        ; normal mov
+        mov   ds,es        ; translated to push es / pop ds
+        mov   es,ds,dx     ; translated sequence using both macros
+
+    Excessive macro redefinition in large projects may slow down assembly
+    and increase memory usage.
+
+local
+    Used inside macros. Declares symbols that are unique for each macro
+    expansion.
+
+purge
+    Removes the last definition of one or more macros.
+    If the macro was not defined, no error is generated.
+
+    To effectively undefine a non-preprocessor symbol:
+
+        macro undefine symbol
+         {
+          local undefined
+          symbol equ undefined
+         }
+
+    After "undefine add" you cannot use "add" as an instruction, but you can
+    still define a label named "add". If you previously did "_add equ add",
+    "_add" still refers to the original instruction.
+
+equ
+    Defines a symbolic constant as a textual substitution.
+
+
+2.2.2 Code settings
+-------------------
+
+use16 / use32
+    Switch code generation mode to 16-bit or 32-bit. Default is use16.
+
+org
+    Sets the origin address at which the code is assumed to be loaded.
+
+format
+    Sets the output file format:
+
+    - format binary   ; default
+    - format MZ       ; DOS MZ EXE format
+
+label
+    Defines a label. Arguments:
+
+    - name
+    - optional size
+    - optional "at <address>"
+
+segment
+    Defines a segment at the current position (MZ format only).
+    Code is aligned to a paragraph.
+    "use16" or "use32" may follow the segment name.
+
+entry
+    Defines the program entry point (MZ format only).
+    Argument is "segment:offset".
+
+stack
+    Sets stack size (MZ format only).
+    If omitted, the default is 2000h bytes.
+    May also be specified as "segment:offset".
+
+heap
+    Sets additional heap size in paragraphs (MZ format only).
+    This is heap space in addition to stack and uninitialized data.
+    Use "heap 0" to allocate only the memory strictly required.
+    Default heap value is 0FFFFh.
+
+
+2.2.3 Other directives
+----------------------
+
+times
+    Repeats an instruction a given number of times.
+
+        times 5 db %           ; generates 01,02,03,04,05
+        times 3 times % db %   ; generates 01,01,02,01,02,03
+
+    "%" is the current repeat counter. Nested usage is allowed.
+
+repeat / end repeat
+    Multi-line repetition:
+
+        repeat N
+          ; instructions
+        end repeat
+
+virtual / end virtual
+    Opens a virtual block at a given address.
+
+    Data and code in a virtual block are not emitted, but labels and offsets
+    defined there can be used elsewhere.
+
+        virtual at <address>
+          ; definitions
+        end virtual
+
+if / else / else if / end if
+    Conditional assembly based on logical expressions. Controls which parts
+    of the source are assembled.
+
+end
+    Used only as part of:
+
+        end repeat
+        end virtual
+        end if
+
+    to close the corresponding structures.
